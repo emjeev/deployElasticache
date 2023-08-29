@@ -157,6 +157,7 @@
       "Properties": {
 	    "AtRestEncryptionEnabled" : "True",
 		"TransitEncryptionEnabled" : "True",
+		"ClusterMode" : "Enabled",
         "ReplicationGroupId": {
           "Ref": "AWS::StackName"
         },
