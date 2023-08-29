@@ -1,0 +1,230 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Elasticache Global Data Store deployment with VPC and Subnets",
+  "Parameters": {
+    "Environment": {
+      "Type": "String",
+      "AllowedValues": [
+        "production",
+        "staging"
+      ],
+      "Description": "Environment type"
+    },
+    "subnet1az": {
+      "Type": "String",
+      "AllowedValues": [
+        "us-east-1a",
+        "eu-west-1a",
+        "ap-east-1a"
+      ],
+      "Description": "Subnet 1"
+    },
+    "subnet2az": {
+      "Type": "String",
+      "AllowedValues": [
+        "us-east-1b",
+        "eu-west-1b",
+        "ap-east-1b"
+      ],
+      "Description": "Subnet 2"
+    },
+    "subnet3az": {
+      "Type": "String",
+      "AllowedValues": [
+        "us-east-1c",
+        "eu-west-1c",
+        "ap-east-1c"
+      ],
+      "Description": "Subnet 3"
+    }
+  },
+  "Resources": {
+    "VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16",
+        "EnableDnsSupport": true,
+        "EnableDnsHostnames": true,
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Ekata-VPC"
+          }
+        ]
+      }
+    },
+    "Subnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "CidrBlock": "10.0.0.0/24",
+        "AvailabilityZone": {
+          "Ref": "subnet1az"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Subnet1"
+          }
+        ]
+      }
+    },
+    "Subnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "CidrBlock": "10.0.1.0/24",
+        "AvailabilityZone": {
+          "Ref": "subnet2az"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Subnet2"
+          }
+        ]
+      }
+    },
+    "Subnet3": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "CidrBlock": "10.0.2.0/24",
+        "AvailabilityZone": {
+          "Ref": "subnet3az"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Subnet3"
+          }
+        ]
+      }
+    },
+    "ElasticacheSubnetGroup": {
+      "Type": "AWS::ElastiCache::SubnetGroup",
+      "Properties": {
+        "CacheSubnetGroupName": "ElasticacheSubnetGroup",
+        "Description": "Elasticache Subnet Group Description",
+        "SubnetIds": [
+          {
+            "Ref": "Subnet1"
+          },
+          {
+            "Ref": "Subnet2"
+          },
+          {
+            "Ref": "Subnet3"
+          }
+        ]
+      }
+    },
+    "ElasticacheSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "GroupDescription": "Elasticache Security Group",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 6379,
+            "ToPort": 6379,
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "ElasticacheParameterGroup": {
+      "Type": "AWS::ElastiCache::ParameterGroup",
+      "Properties": {
+        "CacheParameterGroupFamily": "redis6.x",
+        "Description": "Elasticache Parameters",
+        "Properties": {
+          "maxmemory-policy": "allKeys-lru"
+        }
+      }
+    },
+    "ElasticacheReplicationGroup": {
+      "Type": "AWS::ElastiCache::ReplicationGroup",
+      "Properties": {
+	    "AtRestEncryptionEnabled" : "True",
+		"TransitEncryptionEnabled" : "True",
+        "ReplicationGroupId": {
+          "Ref": "AWS::StackName"
+        },
+        "ReplicationGroupDescription": "Elasticache Global Data Store",
+        "Engine": "redis",
+        "EngineVersion": "6.x",
+        "CacheNodeType": "cache.m5.large",
+        "NumCacheClusters": {
+          "Fn::If": [
+            "IsProduction",
+            3,
+            2
+          ]
+        },
+        "Port": 6379,
+        "CacheParameterGroupName": "default.redis6.x.cluster.on",
+        "CacheSubnetGroupName": {
+          "Ref": "ElasticacheSubnetGroup"
+        },
+        "Tags": [
+          {
+            "Key": "Owner",
+            "Value": "Dataservice"
+          },
+          {
+            "Key": "Service",
+            "Value": "Service1"
+          },
+          {
+            "Key": "Name",
+            "Value": "production"
+          },
+          {
+            "Key": "Classification",
+            "Value": "Internal"
+          },
+          {
+            "Key": "AdditionalTagKey",
+            "Value": "AdditionalTagValue"
+          },
+          {
+            "Key": "AdditionalTagKey2",
+            "Value": "AdditionalTagValue2"
+          }
+        ]
+      }
+    },
+    "ElasticacheGlobalReplicationGroup": {
+      "Type": "AWS::ElastiCache::GlobalReplicationGroup",
+      "Properties": {
+        "GlobalReplicationGroupIdSuffix": {
+          "Ref": "AWS::StackName"
+        },
+        "PrimaryReplicationGroupId": {
+          "Ref": "ElasticacheReplicationGroup"
+        },
+        "AutomaticFailoverEnabled": true
+      }
+    }
+  },
+  "Conditions": {
+    "IsProduction": {
+      "Fn::Equals": [
+        {
+          "Ref": "Environment"
+        },
+        "production"
+      ]
+    }
+  }
+}
